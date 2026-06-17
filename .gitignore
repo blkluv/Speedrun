@@ -1,0 +1,19 @@
+# Secrets — never commit
+.env
+.env.local
+.env.production
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/
+
+# Node / Next.js
+web/node_modules/
+web/.next/
+web/.env.local
+
+# Misc
+.DS_Store
+*.log
+broadcast/speedrun-address.txt

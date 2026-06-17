@@ -1,0 +1,462 @@
+export type StepLevel = 1 | 2 | 3 | 4 | 5; // 5 = Boss
+
+export interface Step {
+  id: number;           // 0-indexed (0–39)
+  specId: number;       // 1-indexed as in spec (1–40)
+  title: string;
+  description: string;
+  level: StepLevel;
+  levelName: string;
+  /** Which token(s) the step targets */
+  token: 'asset' | 'stablecoin' | 'policy' | 'both';
+  /** Step IDs that must be completed before this one is available */
+  prereqs: number[];
+  /** Estimated gas (units) */
+  gasEstimate: number;
+  /** Anchor on docs.base.org/base-chain/specs/upgrades/beryl/b20 */
+  docAnchor: string;
+  /** Warning shown in the UI if gas > 200k or other notable caveats */
+  warning?: string;
+  /** true = pause step that should trigger a PauseProbe after execution */
+  isPauseStep?: boolean;
+  /** true = this is the irreversible renounce step */
+  isRenounce?: boolean;
+}
+
+const DOC_BASE = 'https://docs.base.org/base-chain/specs/upgrades/beryl/b20';
+
+export const STEPS: Step[] = [
+  // ── Level 1 — Factory & roles (0–8) ──────────────────────────────────
+  {
+    id: 0, specId: 1,
+    title: 'Deploy Asset token',
+    description: 'Call Speedrun.initTokens() — creates a B20 Asset (decimals=12) via B20Factory.createB20(ASSET, salt, params, []). The token address is deterministic from (ASSET, Speedrun, salt).',
+    level: 1, levelName: 'Factory & Roles',
+    token: 'asset',
+    prereqs: [],
+    gasEstimate: 180_000,
+    docAnchor: `${DOC_BASE}#factory`,
+  },
+  {
+    id: 1, specId: 2,
+    title: 'Deploy Stablecoin token',
+    description: 'Same initTokens() call deploys a B20 Stablecoin with an immutable currency code (e.g. "USD"). Token address is deterministic from (STABLECOIN, Speedrun, salt).',
+    level: 1, levelName: 'Factory & Roles',
+    token: 'stablecoin',
+    prereqs: [0],
+    gasEstimate: 160_000,
+    docAnchor: `${DOC_BASE}#factory`,
+  },
+  {
+    id: 2, specId: 3,
+    title: 'Grant MINT_ROLE',
+    description: 'grantRole(MINT_ROLE, deployer) on the Asset token. Required before step 18 (mint).',
+    level: 1, levelName: 'Factory & Roles',
+    token: 'asset',
+    prereqs: [1],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#roles`,
+  },
+  {
+    id: 3, specId: 4,
+    title: 'Grant BURN_ROLE',
+    description: 'grantRole(BURN_ROLE, deployer) on the Asset token.',
+    level: 1, levelName: 'Factory & Roles',
+    token: 'asset',
+    prereqs: [1],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#roles`,
+  },
+  {
+    id: 4, specId: 5,
+    title: 'Grant BURN_BLOCKED_ROLE',
+    description: 'grantRole(BURN_BLOCKED_ROLE, deployer) on the Asset token. Required before step 26 (burnBlocked).',
+    level: 1, levelName: 'Factory & Roles',
+    token: 'asset',
+    prereqs: [1],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#roles`,
+  },
+  {
+    id: 5, specId: 6,
+    title: 'Grant PAUSE_ROLE',
+    description: 'grantRole(PAUSE_ROLE, deployer) on the Asset token. Required before steps 35–37 (pause).',
+    level: 1, levelName: 'Factory & Roles',
+    token: 'asset',
+    prereqs: [1],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#roles`,
+  },
+  {
+    id: 6, specId: 7,
+    title: 'Grant UNPAUSE_ROLE',
+    description: 'grantRole(UNPAUSE_ROLE, deployer) on the Asset token. Required before step 38 (unpause).',
+    level: 1, levelName: 'Factory & Roles',
+    token: 'asset',
+    prereqs: [1],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#roles`,
+  },
+  {
+    id: 7, specId: 8,
+    title: 'Grant METADATA_ROLE',
+    description: 'grantRole(METADATA_ROLE, deployer) on the Asset token. Required before steps 31–34 (metadata updates).',
+    level: 1, levelName: 'Factory & Roles',
+    token: 'asset',
+    prereqs: [1],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#roles`,
+  },
+  {
+    id: 8, specId: 9,
+    title: 'Grant OPERATOR_ROLE (Asset)',
+    description: 'grantRole(OPERATOR_ROLE, deployer) on the Asset token. OPERATOR_ROLE is unique to the Asset variant — it gates announce() and updateMultiplier().',
+    level: 1, levelName: 'Factory & Roles',
+    token: 'asset',
+    prereqs: [1],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#roles`,
+  },
+
+  // ── Level 2 — Policies (9–17) ────────────────────────────────────────
+  {
+    id: 9, specId: 10,
+    title: 'Create BLOCKLIST policy',
+    description: 'PolicyRegistry.createPolicy(deployer, BLOCKLIST). Returns a uint64 policyId for the blocklist. Store this ID — you need it for steps 11, 13.',
+    level: 2, levelName: 'Policies',
+    token: 'policy',
+    prereqs: [1],
+    gasEstimate: 60_000,
+    docAnchor: `${DOC_BASE}#policies`,
+  },
+  {
+    id: 10, specId: 11,
+    title: 'Create ALLOWLIST policy',
+    description: 'PolicyRegistry.createPolicy(deployer, ALLOWLIST). Returns a uint64 policyId for the allowlist.',
+    level: 2, levelName: 'Policies',
+    token: 'policy',
+    prereqs: [1],
+    gasEstimate: 60_000,
+    docAnchor: `${DOC_BASE}#policies`,
+  },
+  {
+    id: 11, specId: 12,
+    title: 'Add address to blocklist',
+    description: 'PolicyRegistry.updateBlocklist(blocklistId, true, [victim]). The victim address will be needed for step 26 (burnBlocked).',
+    level: 2, levelName: 'Policies',
+    token: 'policy',
+    prereqs: [9],
+    gasEstimate: 55_000,
+    docAnchor: `${DOC_BASE}#policies`,
+  },
+  {
+    id: 12, specId: 13,
+    title: 'Add address to allowlist',
+    description: 'PolicyRegistry.updateAllowlist(allowlistId, true, [addr]). Demonstrates explicit membership grants in an allowlist policy.',
+    level: 2, levelName: 'Policies',
+    token: 'policy',
+    prereqs: [10],
+    gasEstimate: 55_000,
+    docAnchor: `${DOC_BASE}#policies`,
+  },
+  {
+    id: 13, specId: 14,
+    title: 'Bind TRANSFER_SENDER_POLICY',
+    description: 'IB20.updatePolicy(TRANSFER_SENDER_POLICY, blocklistId) on the Asset token. Transfers from blocklisted senders will now revert.',
+    level: 2, levelName: 'Policies',
+    token: 'asset',
+    prereqs: [9],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#policies`,
+  },
+  {
+    id: 14, specId: 15,
+    title: 'Bind TRANSFER_RECEIVER_POLICY',
+    description: 'IB20.updatePolicy(TRANSFER_RECEIVER_POLICY, allowlistId) on the Asset token.',
+    level: 2, levelName: 'Policies',
+    token: 'asset',
+    prereqs: [10],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#policies`,
+  },
+  {
+    id: 15, specId: 16,
+    title: 'Bind TRANSFER_EXECUTOR_POLICY',
+    description: 'IB20.updatePolicy(TRANSFER_EXECUTOR_POLICY, policyId) on the Asset token. Consulted against msg.sender on transferFrom when distinct from `from`.',
+    level: 2, levelName: 'Policies',
+    token: 'asset',
+    prereqs: [9, 10],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#policies`,
+  },
+  {
+    id: 16, specId: 17,
+    title: 'Bind MINT_RECEIVER_POLICY',
+    description: 'IB20.updatePolicy(MINT_RECEIVER_POLICY, allowlistId) on the Asset token. Unlike transfer-side policies, this is always enforced — even during the factory bootstrap window.',
+    level: 2, levelName: 'Policies',
+    token: 'asset',
+    prereqs: [10],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#policies`,
+  },
+  {
+    id: 17, specId: 18,
+    title: 'Two-step policy admin transfer',
+    description: 'stageUpdateAdmin(policyId, newAdmin) → finalizeUpdateAdmin(policyId). Demonstrates the two-step admin handoff on the PolicyRegistry.',
+    level: 2, levelName: 'Policies',
+    token: 'policy',
+    prereqs: [9],
+    gasEstimate: 80_000,
+    docAnchor: `${DOC_BASE}#policies`,
+  },
+
+  // ── Level 3 — Token movement (18–28) ─────────────────────────────────
+  {
+    id: 18, specId: 19,
+    title: 'mint',
+    description: 'IB20.mint(to, amount) on the Asset token. Requires MINT_ROLE (step 2).',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [2],
+    gasEstimate: 55_000,
+    docAnchor: `${DOC_BASE}#mint-burn`,
+  },
+  {
+    id: 19, specId: 20,
+    title: 'mintWithMemo',
+    description: 'IB20.mintWithMemo(to, amount, memo) — same as mint but emits a Memo event immediately after Transfer.',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [18],
+    gasEstimate: 60_000,
+    docAnchor: `${DOC_BASE}#mint-burn`,
+  },
+  {
+    id: 20, specId: 21,
+    title: 'transfer',
+    description: 'IB20.transfer(to, amount) — standard ERC-20 transfer. Requires a non-zero balance (step 18).',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [18],
+    gasEstimate: 55_000,
+    docAnchor: `${DOC_BASE}#transfers`,
+  },
+  {
+    id: 21, specId: 22,
+    title: 'transferWithMemo',
+    description: 'IB20.transferWithMemo(to, amount, memo) — emits Memo event after Transfer.',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [18],
+    gasEstimate: 60_000,
+    docAnchor: `${DOC_BASE}#transfers`,
+  },
+  {
+    id: 22, specId: 23,
+    title: 'transferFrom (after approve)',
+    description: 'First approve(spender, amount), then have spender call transferFrom(owner, to, amount). Demonstrates ERC-20 allowance flow.',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [18],
+    gasEstimate: 70_000,
+    docAnchor: `${DOC_BASE}#transfers`,
+  },
+  {
+    id: 23, specId: 24,
+    title: 'transferFromWithMemo',
+    description: 'transferFromWithMemo(from, to, amount, memo) — transferFrom variant that also emits Memo.',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [18],
+    gasEstimate: 75_000,
+    docAnchor: `${DOC_BASE}#transfers`,
+  },
+  {
+    id: 24, specId: 25,
+    title: 'burn',
+    description: 'IB20.burn(amount) — burns from caller\'s own balance. Requires BURN_ROLE (step 3).',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [3, 18],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#mint-burn`,
+  },
+  {
+    id: 25, specId: 26,
+    title: 'burnWithMemo',
+    description: 'IB20.burnWithMemo(amount, memo) — burn with Memo event.',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [3, 18],
+    gasEstimate: 55_000,
+    docAnchor: `${DOC_BASE}#mint-burn`,
+  },
+  {
+    id: 26, specId: 27,
+    title: 'burnBlocked',
+    description: 'Add victim to blocklist (step 11 must be done), mint to victim, then burnBlocked(victim, amount). Requires BURN_BLOCKED_ROLE (step 4). The victim must NOT be authorized under TRANSFER_SENDER_POLICY.',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [4, 11, 18],
+    gasEstimate: 80_000,
+    docAnchor: `${DOC_BASE}#mint-burn`,
+  },
+  {
+    id: 27, specId: 28,
+    title: 'updateSupplyCap',
+    description: 'IB20.updateSupplyCap(newCap) — set a new maximum total supply. Requires DEFAULT_ADMIN_ROLE. Cap must be ≥ totalSupply and ≤ type(uint128).max.',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [1],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#supply-cap`,
+  },
+  {
+    id: 28, specId: 29,
+    title: 'ERC-2612 permit',
+    description: 'Sign an EIP-712 permit off-chain with one EOA, then call permit(owner, spender, value, deadline, v, r, s) from a different account. Only EOA ECDSA signatures — ERC-1271 is NOT supported.',
+    level: 3, levelName: 'Movement',
+    token: 'asset',
+    prereqs: [1],
+    gasEstimate: 65_000,
+    docAnchor: `${DOC_BASE}#permit`,
+  },
+
+  // ── Level 4 — Asset specials (29–34) ─────────────────────────────────
+  {
+    id: 29, specId: 30,
+    title: 'updateMultiplier',
+    description: 'IB20Asset.updateMultiplier(newMultiplier) — set a WAD-precision scale factor. UI shows scaledBalanceOf before and after. Requires OPERATOR_ROLE (step 8). WAD precision = 1e18.',
+    level: 4, levelName: 'Asset Specials',
+    token: 'asset',
+    prereqs: [8, 18],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#asset`,
+  },
+  {
+    id: 30, specId: 31,
+    title: 'announce + batchMint',
+    description: 'IB20Asset.announce(internalCalls=[batchMint(…)], id, description, uri) — posts a public disclosure and executes batchMint atomically as an internalCall. Requires OPERATOR_ROLE and MINT_ROLE.',
+    level: 4, levelName: 'Asset Specials',
+    token: 'asset',
+    prereqs: [8, 2],
+    gasEstimate: 150_000,
+    docAnchor: `${DOC_BASE}#asset`,
+    warning: 'Gas estimate varies with batch size. Keep batch ≤ 10 to stay under 200k.',
+  },
+  {
+    id: 31, specId: 32,
+    title: 'updateExtraMetadata (set + delete)',
+    description: 'updateExtraMetadata("twitter", "@…") to set, then updateExtraMetadata("twitter", "") to delete. Requires METADATA_ROLE (step 7). Empty value removes the key.',
+    level: 4, levelName: 'Asset Specials',
+    token: 'asset',
+    prereqs: [7],
+    gasEstimate: 60_000,
+    docAnchor: `${DOC_BASE}#asset`,
+  },
+  {
+    id: 32, specId: 33,
+    title: 'updateName',
+    description: 'IB20.updateName(newName) — emits NameUpdated then EIP712DomainChanged. Requires METADATA_ROLE. The EIP712DomainChanged event signals wallets to re-fetch the domain.',
+    level: 4, levelName: 'Asset Specials',
+    token: 'asset',
+    prereqs: [7],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#metadata`,
+  },
+  {
+    id: 33, specId: 34,
+    title: 'updateSymbol',
+    description: 'IB20.updateSymbol(newSymbol) — emits SymbolUpdated. NOTE: updateSymbol does NOT emit EIP712DomainChanged (unlike updateName).',
+    level: 4, levelName: 'Asset Specials',
+    token: 'asset',
+    prereqs: [7],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#metadata`,
+  },
+  {
+    id: 34, specId: 35,
+    title: 'updateContractURI',
+    description: 'IB20.updateContractURI(newURI) — per ERC-7572, emits parameterless ContractURIUpdated. Requires METADATA_ROLE.',
+    level: 4, levelName: 'Asset Specials',
+    token: 'asset',
+    prereqs: [7],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#metadata`,
+  },
+
+  // ── Boss — Pause & renounce (35–39) ──────────────────────────────────
+  {
+    id: 35, specId: 36,
+    title: 'pause(TRANSFER)',
+    description: 'IB20.pause([TRANSFER]) — after executing, the UI auto-attempts a transfer and captures the ContractPaused(TRANSFER) revert as proof. Requires PAUSE_ROLE (step 5).',
+    level: 5, levelName: 'Boss',
+    token: 'asset',
+    prereqs: [5, 20],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#pause`,
+    isPauseStep: true,
+  },
+  {
+    id: 36, specId: 37,
+    title: 'pause(MINT)',
+    description: 'IB20.pause([MINT]) — UI attempts mint after pause and captures ContractPaused(MINT) revert.',
+    level: 5, levelName: 'Boss',
+    token: 'asset',
+    prereqs: [5, 35],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#pause`,
+    isPauseStep: true,
+  },
+  {
+    id: 37, specId: 38,
+    title: 'pause(BURN)',
+    description: 'IB20.pause([BURN]) — UI attempts burn after pause and captures ContractPaused(BURN) revert.',
+    level: 5, levelName: 'Boss',
+    token: 'asset',
+    prereqs: [5, 36],
+    gasEstimate: 45_000,
+    docAnchor: `${DOC_BASE}#pause`,
+    isPauseStep: true,
+  },
+  {
+    id: 38, specId: 39,
+    title: 'unpause all features',
+    description: 'IB20.unpause([TRANSFER, MINT, BURN]) — unpauses all three features in a single call. Requires UNPAUSE_ROLE (step 6).',
+    level: 5, levelName: 'Boss',
+    token: 'asset',
+    prereqs: [6, 35, 36, 37],
+    gasEstimate: 50_000,
+    docAnchor: `${DOC_BASE}#pause`,
+  },
+  {
+    id: 39, specId: 40,
+    title: 'renounceLastAdmin',
+    description: 'IB20.renounceLastAdmin() on BOTH tokens — permanently transitions both to a zero-admin state. Caller must be the sole DEFAULT_ADMIN_ROLE holder. IRREVERSIBLE.',
+    level: 5, levelName: 'Boss',
+    token: 'both',
+    prereqs: [38],
+    gasEstimate: 60_000,
+    docAnchor: `${DOC_BASE}#renounce`,
+    isRenounce: true,
+    warning: '⚠️ IRREVERSIBLE. Once renounced, no one can grant roles or change policies on these tokens ever again.',
+  },
+];
+
+export const LEVEL_NAMES: Record<StepLevel, string> = {
+  1: 'Level 1 — Factory & Roles',
+  2: 'Level 2 — Policies',
+  3: 'Level 3 — Movement',
+  4: 'Level 4 — Asset Specials',
+  5: '👾 Boss — Pause & Renounce',
+};
+
+export function stepsByLevel(level: StepLevel): Step[] {
+  return STEPS.filter((s) => s.level === level);
+}
+
+export function isStepAvailable(stepId: number, progress: bigint): boolean {
+  const step = STEPS[stepId];
+  if (!step) return false;
+  return step.prereqs.every((prereq) => (progress >> BigInt(prereq)) & 1n);
+}
