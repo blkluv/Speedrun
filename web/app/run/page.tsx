@@ -3,12 +3,10 @@
 import { useState } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useDeployContract } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { encodeAbiParameters } from 'viem';
 import { ActivationBanner } from '@/components/ActivationBanner';
 import { LevelGrid } from '@/components/LevelGrid';
 import { useActivationStatus, useSpeedrunContractAddress, useSpeedrunProgress } from '@/lib/hooks';
 import { SPEEDRUN_ABI, SPEEDRUN_BYTECODE } from '@/lib/abis/Speedrun';
-import { STEPS } from '@/lib/steps';
 import Link from 'next/link';
 
 export default function RunPage() {
@@ -17,16 +15,25 @@ export default function RunPage() {
   const [contractAddr, setContractAddr] = useSpeedrunContractAddress();
   const [manualAddr, setManualAddr] = useState('');
 
+  // Deploy Speedrun contract from browser
   const { deployContractAsync, isPending: isDeploying } = useDeployContract();
   const [deployHash, setDeployHash] = useState<`0x${string}` | undefined>();
-  const { isSuccess: deployConfirmed, data: deployReceipt } = useWaitForTransactionReceipt({
-    hash: deployHash,
-  });
+  const { isSuccess: deployConfirmed, data: deployReceipt } = useWaitForTransactionReceipt({ hash: deployHash });
 
   const progress = useSpeedrunProgress(contractAddr ?? undefined);
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync, isPending: isTxPending } = useWriteContract();
 
-  // Handle deploy
+  // initTokens state
+  const [initCurrency, setInitCurrency] = useState('USD');
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [initTxHash, setInitTxHash] = useState<`0x${string}` | undefined>();
+  const { isSuccess: initConfirmed } = useWaitForTransactionReceipt({ hash: initTxHash });
+
+  // Grab deployed address from receipt
+  if (deployConfirmed && deployReceipt?.contractAddress && !contractAddr) {
+    setContractAddr(deployReceipt.contractAddress);
+  }
+
   async function handleDeploy() {
     if (!SPEEDRUN_BYTECODE || SPEEDRUN_BYTECODE === '0x') {
       alert('Run `make sync-abi` first to populate the Speedrun bytecode.');
@@ -40,12 +47,26 @@ export default function RunPage() {
     setDeployHash(hash);
   }
 
-  // Grab deployed address from receipt
-  if (deployConfirmed && deployReceipt?.contractAddress && !contractAddr) {
-    setContractAddr(deployReceipt.contractAddress);
+  async function handleInitTokens() {
+    if (!contractAddr) return;
+    const code = initCurrency.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5) || 'USD';
+    // bytes32 salts: "asset" and "stable" left-padded with zeros
+    const saltAsset  = `0x${'6173736574'.padEnd(64, '0')}` as `0x${string}`;
+    const saltStable = `0x${'737461626c65'.padEnd(64, '0')}` as `0x${string}`;
+    setIsInitializing(true);
+    try {
+      const hash = await writeContractAsync({
+        address: contractAddr,
+        abi: SPEEDRUN_ABI,
+        functionName: 'initTokens',
+        args: [saltAsset, saltStable, code],
+      });
+      setInitTxHash(hash);
+    } finally {
+      setIsInitializing(false);
+    }
   }
 
-  // markStep
   async function handleMarkStep(stepId: number, txRef: `0x${string}`, memo: `0x${string}`) {
     if (!contractAddr) return;
     await writeContractAsync({
@@ -85,7 +106,6 @@ export default function RunPage() {
         Runner: <span className="font-mono text-gray-300">{address}</span>
       </p>
 
-      {/* Activation warning */}
       {activation === 'pending' && (
         <div className="mb-8">
           <ActivationBanner />
@@ -97,8 +117,7 @@ export default function RunPage() {
         <section className="border border-gray-800 rounded-xl p-8 mb-8">
           <h2 className="text-xl font-bold mb-2">Deploy your Speedrun contract</h2>
           <p className="text-gray-400 text-sm mb-6">
-            Each runner deploys their own Speedrun.sol. Deploy via the Foundry CLI (key stays
-            in env, never as a CLI arg) — or deploy directly from your browser wallet below.
+            Each runner deploys their own Speedrun.sol to track progress onchain.
           </p>
 
           {/* CLI option */}
@@ -119,16 +138,11 @@ export default function RunPage() {
           {/* Browser deploy */}
           <button
             onClick={handleDeploy}
-            disabled={isDeploying || activation !== 'active'}
+            disabled={isDeploying}
             className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-lg transition-colors"
           >
-            {isDeploying ? 'Deploying…' : 'Deploy via Wallet (Option B)'}
+            {isDeploying ? 'Deploying…' : 'Deploy via Wallet'}
           </button>
-          {activation !== 'active' && (
-            <p className="text-yellow-500 text-xs mt-2">
-              Waiting for Beryl activation before deploying.
-            </p>
-          )}
 
           {/* Manual import */}
           <div className="mt-8 pt-6 border-t border-gray-800">
@@ -217,16 +231,58 @@ export default function RunPage() {
               </div>
             )}
 
+            {/* initTokens — shown when not yet initialized and Beryl is active */}
+            {!progress.initialized && activation === 'active' && !initConfirmed && (
+              <div className="mt-6 border border-yellow-500/30 bg-yellow-900/10 rounded-xl p-5">
+                <h3 className="font-bold text-yellow-400 mb-1">Step 0 — Deploy B20 tokens</h3>
+                <p className="text-gray-400 text-sm mb-4">
+                  Call <span className="font-mono text-yellow-300">initTokens()</span> to deploy your Asset and Stablecoin
+                  via B20Factory. Pick a currency code (3–5 uppercase letters, e.g. USD).
+                </p>
+                <div className="flex gap-3 items-center">
+                  <input
+                    type="text"
+                    maxLength={5}
+                    placeholder="USD"
+                    value={initCurrency}
+                    onChange={(e) => setInitCurrency(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
+                    className="w-24 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 font-mono text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 uppercase"
+                  />
+                  <button
+                    onClick={handleInitTokens}
+                    disabled={isInitializing || isTxPending}
+                    className="bg-yellow-500 hover:bg-yellow-400 disabled:opacity-40 disabled:cursor-not-allowed text-black font-bold py-2 px-6 rounded-lg transition-colors"
+                  >
+                    {isInitializing || isTxPending ? 'Sending…' : 'Deploy tokens →'}
+                  </button>
+                </div>
+                {initTxHash && (
+                  <p className="text-xs text-gray-500 mt-2 font-mono">
+                    tx: <a href={`https://basescan.org/tx/${initTxHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{initTxHash}</a>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!progress.initialized && activation === 'active' && initConfirmed && (
+              <div className="mt-4 bg-green-900/20 border border-green-500/30 rounded-lg p-3 text-sm text-green-400">
+                Tokens deployed! Refreshing…
+              </div>
+            )}
+
+            {!progress.initialized && activation === 'pending' && (
+              <div className="mt-4 bg-gray-900 border border-gray-700 rounded-lg p-4 text-sm text-gray-400">
+                Waiting for Beryl activation to deploy B20 tokens. The button will appear at 18:00 UTC.
+              </div>
+            )}
+
             {progress.completedAt > 0n && (
               <div className="mt-4 bg-green-900/20 border border-green-500/30 rounded-lg p-4 text-center">
-                <div className="text-green-400 font-bold text-lg">🏁 Run Complete!</div>
+                <div className="text-green-400 font-bold text-lg">Run Complete!</div>
                 <div className="text-gray-400 text-sm mt-1">
                   Completed at {new Date(Number(progress.completedAt) * 1000).toUTCString()}
                 </div>
-                <Link
-                  href={`/profile/${address}`}
-                  className="text-green-400 hover:underline text-sm"
-                >
+                <Link href={`/profile/${address}`} className="text-green-400 hover:underline text-sm">
                   View your certificate →
                 </Link>
               </div>
@@ -245,14 +301,16 @@ export default function RunPage() {
           </section>
 
           {/* All 5 levels */}
-          <LevelGrid
-            progress={progress.progress}
-            contractAddress={contractAddr}
-            assetToken={progress.assetToken}
-            stablecoinToken={progress.stablecoinToken}
-            initialized={progress.initialized}
-            onMarkStep={handleMarkStep}
-          />
+          {progress.initialized && (
+            <LevelGrid
+              progress={progress.progress}
+              contractAddress={contractAddr}
+              assetToken={progress.assetToken}
+              stablecoinToken={progress.stablecoinToken}
+              initialized={progress.initialized}
+              onMarkStep={handleMarkStep}
+            />
+          )}
         </>
       )}
     </main>

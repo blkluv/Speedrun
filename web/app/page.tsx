@@ -38,13 +38,13 @@ export default function LandingPage() {
       {/* Connect / Start */}
       <div className="flex flex-col items-center gap-6 mb-16">
         <ConnectButton />
-        {isConnected && activation === 'active' && (
+        {isConnected && (
           <div className="flex flex-col items-center gap-3">
             <Link
               href="/run"
               className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 px-10 rounded-xl text-lg transition-colors shadow-lg shadow-blue-900/30"
             >
-              Start Speedrun →
+              {activation === 'active' ? 'Start Speedrun →' : 'Prepare my run →'}
             </Link>
             <Link
               href={`/profile/${address}`}
