@@ -16,12 +16,17 @@ export function useActivationStatus(): ActivationStatus {
     if (!client) return;
     let cancelled = false;
 
+    // B20Factory is a native precompile — eth_getCode always returns 0x even when live.
+    // Probe by calling isB20(address(1)) instead: returns bool if active, reverts if not.
     client
-      .getBytecode({ address: PRECOMPILES.B20_FACTORY })
-      .then((code) => {
-        if (cancelled) return;
-        const hasCode = code !== undefined && code !== '0x' && code.length > 2;
-        setStatus(hasCode ? 'active' : 'pending');
+      .readContract({
+        address: PRECOMPILES.B20_FACTORY,
+        abi: [{ name: 'isB20', type: 'function', stateMutability: 'view', inputs: [{ name: 'addr', type: 'address' }], outputs: [{ name: '', type: 'bool' }] }],
+        functionName: 'isB20',
+        args: ['0x0000000000000000000000000000000000000001'],
+      })
+      .then(() => {
+        if (!cancelled) setStatus('active');
       })
       .catch(() => {
         if (!cancelled) setStatus('pending');
