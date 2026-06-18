@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     description: 'A guided speedrun through every B20 capability on Base.',
     type: 'website',
   },
+  other: {
+    'base:app_id': '6a342e8cce4d82b1606a79c7',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
