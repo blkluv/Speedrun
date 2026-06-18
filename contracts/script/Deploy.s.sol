@@ -54,9 +54,5 @@ contract DeploySpeedrun is Script {
         console.log("    --rpc-url $RPC_URL \\");
         console.log("    --account speedrun");
 
-        vm.writeFile(
-            string.concat(vm.projectRoot(), "/broadcast/speedrun-address.txt"),
-            vm.toString(address(speedrun))
-        );
     }
 }

@@ -17,7 +17,7 @@ export default function RunPage() {
   const [contractAddr, setContractAddr] = useSpeedrunContractAddress();
   const [manualAddr, setManualAddr] = useState('');
 
-  const { deployContract, isPending: isDeploying } = useDeployContract();
+  const { deployContractAsync, isPending: isDeploying } = useDeployContract();
   const [deployHash, setDeployHash] = useState<`0x${string}` | undefined>();
   const { isSuccess: deployConfirmed, data: deployReceipt } = useWaitForTransactionReceipt({
     hash: deployHash,
@@ -32,7 +32,7 @@ export default function RunPage() {
       alert('Run `make sync-abi` first to populate the Speedrun bytecode.');
       return;
     }
-    const hash = await deployContract({
+    const hash = await deployContractAsync({
       abi: SPEEDRUN_ABI,
       bytecode: SPEEDRUN_BYTECODE,
       args: [],

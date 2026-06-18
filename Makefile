@@ -1,8 +1,13 @@
 .PHONY: install build test sync-abi deploy-sepolia deploy-mainnet web-dev web-build
 
+BASE_SEPOLIA_RPC_URL ?= https://sepolia.base.org
+BASE_MAINNET_RPC_URL ?= https://mainnet.base.org
+BASESCAN_API_KEY     ?= $(shell grep -E '^BASESCAN_API_KEY=' .env 2>/dev/null | cut -d= -f2-)
+export BASESCAN_API_KEY
+
 # ── Setup ──────────────────────────────────────────────────────────────────
 install:
-	cd contracts && forge install foundry-rs/forge-std --no-commit
+	cd contracts && forge install foundry-rs/forge-std
 	cd web && npm install
 
 # ── Contracts ──────────────────────────────────────────────────────────────
