@@ -145,4 +145,6 @@ export const POLICY_REGISTRY_ABI = [
 
 // PolicyType enum values
 export const PolicyType = { BLOCKLIST: 0, ALLOWLIST: 1 } as const;
+
+export const POLICY_REGISTRY = '0x8453000000000000000000000000000000000002' as const;
 export type PolicyTypeValue = typeof PolicyType[keyof typeof PolicyType];

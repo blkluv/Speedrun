@@ -7,11 +7,7 @@ import type { StepLevel } from '@/lib/steps';
 
 interface LevelGridProps {
   progress: bigint;
-  contractAddress: `0x${string}`;
   assetToken: `0x${string}` | undefined;
-  stablecoinToken: `0x${string}` | undefined;
-  initialized: boolean;
-  onMarkStep: (stepId: number, txRef: `0x${string}`, memo: `0x${string}`) => Promise<void>;
 }
 
 const LEVEL_COLORS: Record<StepLevel, string> = {
@@ -22,11 +18,7 @@ const LEVEL_COLORS: Record<StepLevel, string> = {
   5: 'text-red-400 border-red-500/20',
 };
 
-export function LevelGrid({
-  progress,
-  assetToken,
-  onMarkStep,
-}: LevelGridProps) {
+export function LevelGrid({ progress, assetToken }: LevelGridProps) {
   const levels: StepLevel[] = [1, 2, 3, 4, 5];
 
   return (
@@ -60,7 +52,6 @@ export function LevelGrid({
                       step={step}
                       isDone={isDone}
                       isAvailable={available}
-                      onMarkStep={onMarkStep}
                     />
                     {/* Pause probe shown inline after a pause step is done */}
                     {step.isPauseStep && isDone && assetToken && (

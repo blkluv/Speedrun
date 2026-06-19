@@ -35,6 +35,12 @@ deploy-sepolia:
 		--verify \
 		-vv; true
 
+level1-sepolia:
+	cd contracts && forge script script/Level1.s.sol \
+		--rpc-url $(BASE_SEPOLIA_RPC_URL) \
+		--account speedrun \
+		--broadcast -vv
+
 deploy-mainnet:
 	@echo "⚠️  Deploying to BASE MAINNET. Press Ctrl-C to cancel, Enter to continue."
 	@read _
