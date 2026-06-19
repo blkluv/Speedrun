@@ -56,6 +56,20 @@ export function StepCard({ step, isDone, isAvailable }: StepCardProps) {
     try {
       let actionTx: `0x${string}` | undefined;
 
+      // ── Steps 0 & 1: tokens already deployed, just markStep ──────────────
+      if (step.id === 0 || step.id === 1) {
+        setPhase('marking');
+        const mHash = await writeContractAsync({
+          address: contractAddress,
+          abi: SPEEDRUN_ABI,
+          functionName: 'markStep',
+          args: [step.id, ZERO32, ZERO32],
+        });
+        setMarkHash(mHash);
+        setPhase('done');
+        return;
+      }
+
       // ── Level 1: grantRole calls ──────────────────────────────────────────
       const ROLES = [
         B20_ROLES.MINT_ROLE, B20_ROLES.BURN_ROLE, B20_ROLES.BURN_BLOCKED_ROLE,
