@@ -2,7 +2,7 @@ import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { base, baseSepolia } from 'wagmi/chains';
 import { Attribution } from 'ox/erc8021';
 
-const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ['bc_8aubniym'] });
+export const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ['bc_8aubniym'] }) as `0x${string}`;
 
 export const wagmiConfig = getDefaultConfig({
   appName: 'B20 Speedrun',

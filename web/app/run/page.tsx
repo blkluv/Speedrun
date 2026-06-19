@@ -8,6 +8,7 @@ import { LevelGrid } from '@/components/LevelGrid';
 import { useActivationStatus, useSpeedrunContractAddress, useSpeedrunProgress } from '@/lib/hooks';
 import { SPEEDRUN_ABI, SPEEDRUN_BYTECODE } from '@/lib/abis/Speedrun';
 import { SpeedrunContext } from '@/lib/speedrunContext';
+import { DATA_SUFFIX } from '@/lib/wagmi';
 import Link from 'next/link';
 
 export default function RunPage() {
@@ -22,7 +23,8 @@ export default function RunPage() {
   const { isSuccess: deployConfirmed, data: deployReceipt } = useWaitForTransactionReceipt({ hash: deployHash });
 
   const progress = useSpeedrunProgress(contractAddr ?? undefined);
-  const { writeContractAsync, isPending: isTxPending } = useWriteContract();
+  const { writeContractAsync: _write, isPending: isTxPending } = useWriteContract();
+  const writeContractAsync: typeof _write = (p) => _write({ ...p, dataSuffix: DATA_SUFFIX } as Parameters<typeof _write>[0]);
 
   // initTokens state
   const [initCurrency, setInitCurrency] = useState('USD');

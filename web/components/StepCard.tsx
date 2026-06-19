@@ -8,6 +8,7 @@ import { B20_TOKEN_ABI, B20_ROLES, POLICY_SLOT, PAUSE_FEATURE, TOKEN_AMOUNT } fr
 import { POLICY_REGISTRY_ABI, PolicyType, POLICY_REGISTRY } from '@/lib/abis/PolicyRegistry';
 import { SPEEDRUN_ABI } from '@/lib/abis/Speedrun';
 import { useSpeedrun } from '@/lib/speedrunContext';
+import { DATA_SUFFIX } from '@/lib/wagmi';
 
 // Burn address used as "victim" throughout the speedrun
 const VICTIM = '0x000000000000000000000000000000000000dEaD' as const;
@@ -29,9 +30,13 @@ type Phase = 'idle' | 'action' | 'waiting' | 'marking' | 'done' | 'error';
 export function StepCard({ step, isDone, isAvailable }: StepCardProps) {
   const { address: deployer } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync: _write } = useWriteContract();
   const { signTypedDataAsync } = useSignTypedData();
   const chainId = useChainId();
+
+  // Wrap every contract write with the builder-code attribution suffix
+  const writeContractAsync: typeof _write = (params) =>
+    _write({ ...params, dataSuffix: DATA_SUFFIX } as Parameters<typeof _write>[0]);
 
   const {
     contractAddress, assetToken, stablecoinToken,
